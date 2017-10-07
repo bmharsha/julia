@@ -280,7 +280,7 @@ Building Julia requires that the following software be installed:
 - **[wget]**, **[curl]**, or **[fetch]** (FreeBSD) — to automatically download external libraries.
 - **[m4]**                      — needed to build GMP.
 - **[patch]**                   — for modifying source code.
-- **[cmake]**                   — needed to build `libgit2`.
+- **[cmake]** (>= 3.4.3)        — needed to build `libgit2`.
 - **[pkg-config]**              - needed to build `libgit2` correctly, especially for proxy support
 
 Julia uses the following external libraries, which are automatically downloaded (or in a few cases, included in the Julia source repository) and then compiled from source the first time you run `make`:
@@ -372,11 +372,12 @@ It is highly recommended to start with a fresh clone of the Julia repository.
 
 The Julia source code is organized as follows:
 
-    base/          source code for Julia's standard library
+    base/          source code for the Base module (part of Julia's standard library)
+    stdlib/        source code for other standard library packages
     contrib/       editor support for Julia source, miscellaneous scripts
     deps/          external dependencies
-    doc/manual     source for the user manual
-    doc/stdlib     source for standard library function help text
+    doc/src/manual source for the user manual
+    doc/src/stdlib source for standard library function reference
     examples/      example Julia programs
     src/           source for Julia language core
     test/          test suites

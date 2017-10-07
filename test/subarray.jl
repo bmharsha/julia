@@ -1,6 +1,6 @@
 # This file is a part of Julia. License is MIT: https://julialang.org/license
 
-using Base.Test
+using Test
 
 ######## Utilities ###########
 
@@ -574,4 +574,12 @@ let
     a = ImmutableTestArray{Float64, 2}()
     @test Base.IndexStyle(view(a, :, :)) == Base.IndexLinear()
     @test isbits(view(a, :, :))
+end
+
+# ref issue #17351
+@test @inferred(flipdim(view([1 2; 3 4], :, 1), 1)) == [3, 1]
+
+let
+    s = view(reshape(1:6, 2, 3), 1:2, 1:2)
+    @test @inferred(s[2,2,1]) === 4
 end

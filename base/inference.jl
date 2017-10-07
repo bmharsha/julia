@@ -1598,7 +1598,7 @@ function builtin_tfunction(@nospecialize(f), argtypes::Array{Any,1},
         end
         tf = t_ifunc[iidx]
     else
-        fidx = findfirst(t_ffunc_key, f)
+        fidx = findfirst(x->x===f, t_ffunc_key)
         if fidx == 0
             # unknown/unhandled builtin function
             return Any
@@ -3693,7 +3693,7 @@ function type_annotate!(sv::InferenceState)
                 continue
             end
             # This can create `Expr(:gotoifnot)` with dangling label, which we
-            # will clean up in `reindex_labels!`
+            # will clean up by replacing them with the conditions later.
             deleteat!(body, i)
             deleteat!(states, i)
             nexpr -= 1
@@ -3706,6 +3706,21 @@ function type_annotate!(sv::InferenceState)
     for j = 1:nslots
         if undefs[j]
             src.slotflags[j] |= Slot_UsedUndef
+        end
+    end
+
+    # The dead code elimination can delete the target of a reachable node. This
+    # must mean that the target is unreachable. Later optimization passes will
+    # assume that all branches lead to labels that exist, so we must replace
+    # the node with the branch condition (which may have side effects).
+    labelmap = get_label_map(body, sv)
+    for i in 1:length(body)
+        expr = body[i]
+        if isa(expr, Expr) && expr.head === :gotoifnot
+            labelnum = labelmap[expr.args[2]::Int]
+            if labelnum === 0
+                body[i] = expr.args[1]
+            end
         end
     end
     nothing
@@ -4772,7 +4787,7 @@ function statement_cost(ex::Expr, line::Int, src::CodeInfo, mod::Module, params:
                 elseif f == Main.Core.arrayref
                     return plus_saturate(argcost, isknowntype(ex.typ) ? 4 : params.inline_nonleaf_penalty)
                 end
-                fidx = findfirst(t_ffunc_key, f)
+                fidx = findfirst(x->x===f, t_ffunc_key)
                 if fidx == 0
                     # unknown/unhandled builtin or anonymous function
                     # Use the generic cost of a direct function call
@@ -5619,7 +5634,7 @@ function _getfield_elim_pass!(e::Expr, sv::InferenceState)
             if alloc !== false
                 flen, fnames = alloc
                 if isa(j, QuoteNode)
-                    j = findfirst(fnames, j.value)
+                    j = findfirst(equalto(j.value), fnames)
                 end
                 if 1 <= j <= flen
                     ok = true
@@ -5733,8 +5748,7 @@ function basic_dce_pass!(sv::InferenceState)
         elseif isa(expr, Expr)
             label = 0
             if expr.head === :gotoifnot
-                label = labelmap[expr.args[2]::Int]
-                label === 0 || push!(W, label) # inference must have computed that this condition is always true
+                push!(W, labelmap[expr.args[2]::Int])
             elseif expr.head === :enter
                 push!(W, labelmap[expr.args[1]::Int])
             elseif expr.head === :return
@@ -5914,7 +5928,7 @@ function replace_getfield!(e::Expr, tupname, vals, field_names, sv::InferenceSta
                 a.args[3]
             else
                 @assert isa(a.args[3], QuoteNode)
-                findfirst(field_names, a.args[3].value)
+                findfirst(equalto(a.args[3].value), field_names)
             end
             @assert(idx > 0) # clients should check that all getfields are valid
             val = vals[idx]
@@ -5966,10 +5980,7 @@ function reindex_labels!(sv::InferenceState)
     for i = 1:length(body)
         el = body[i]
         # For goto and enter, the statement and the target has to be
-        # both reachable or both not. For gotoifnot, the dead code
-        # elimination in type_annotate! can delete the target
-        # of a reachable (but never taken) node. In which case we can
-        # just replace the node with the branch condition.
+        # both reachable or both not.
         if isa(el, LabelNode)
             labelnum = mapping[el.label]
             @assert labelnum !== 0
@@ -5981,12 +5992,8 @@ function reindex_labels!(sv::InferenceState)
         elseif isa(el, Expr)
             if el.head === :gotoifnot
                 labelnum = mapping[el.args[2]::Int]
-                if labelnum === 0
-                    # Might still have side effects
-                    body[i] = el.args[1]
-                else
-                    el.args[2] = labelnum
-                end
+                @assert labelnum !== 0
+                el.args[2] = labelnum
             elseif el.head === :enter
                 labelnum = mapping[el.args[1]::Int]
                 @assert labelnum !== 0

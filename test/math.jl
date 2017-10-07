@@ -657,6 +657,8 @@ end
     @test sincos(1) === (sin(1), cos(1))
     @test sincos(big(1)) == (sin(big(1)), cos(big(1)))
     @test sincos(big(1.0)) == (sin(big(1.0)), cos(big(1.0)))
+    @test sincos(NaN) === (NaN, NaN)
+    @test sincos(NaN32) === (NaN32, NaN32)
 end
 
 @testset "test fallback definitions" begin
@@ -701,6 +703,103 @@ end
         @test_throws DomainError asin(-T(Inf))
         @test_throws DomainError asin(T(Inf))
         @test asin(T(NaN)) === T(NaN)
+    end
+end
+
+@testset "sin, cos, sincos, tan #23088" begin
+    for T in (Float32, Float64)
+        @test sin(zero(T)) === zero(T)
+        @test sin(-zero(T)) === -zero(T)
+        @test cos(zero(T)) === T(1.0)
+        @test cos(-zero(T)) === T(1.0)
+        @test sin(nextfloat(zero(T))) === nextfloat(zero(T))
+        @test sin(prevfloat(zero(T))) === prevfloat(zero(T))
+        @test cos(nextfloat(zero(T))) === T(1.0)
+        @test cos(prevfloat(zero(T))) === T(1.0)
+        for x in (0.1, 0.45, 0.6, 0.75, 0.79, 0.98)
+            for op in (sin, cos, tan)
+                by = T(op(big(x)))
+                @test abs(op(T(x)) - by)/eps(by) <= one(T)
+                bym = T(op(big(-x)))
+                @test abs(op(T(-x)) - bym)/eps(bym) <= one(T)
+            end
+        end
+        @test_throws DomainError sin(-T(Inf))
+        @test_throws DomainError sin(T(Inf))
+        @test_throws DomainError cos(-T(Inf))
+        @test_throws DomainError cos(T(Inf))
+        @test_throws DomainError tan(-T(Inf))
+        @test_throws DomainError tan(T(Inf))
+        @test sin(T(NaN)) === T(NaN)
+        @test cos(T(NaN)) === T(NaN)
+        @test tan(T(NaN)) === T(NaN)
+    end
+end
+
+@testset "rem_pio2 #23088" begin
+    vals = (2.356194490192345f0, 3.9269908169872414f0, 7.0685834705770345f0,
+              5.497787143782138f0, 4.216574282663131f8, 4.216574282663131f12)
+    for (i, x) in enumerate(vals)
+        for op in (prevfloat, nextfloat)
+            Ty = Float32(Base.Math.rem_pio2_kernel(op(vals[i]))[2].hi)
+            By = Float32(rem(big(op(x)), pi/2))
+            @test Ty ≈ By || Ty ≈ By-Float32(pi)/2
+        end
+    end
+end
+
+@testset "atan2" begin
+    for T in (Float32, Float64)
+        @test atan2(T(NaN), T(NaN)) === T(NaN)
+        @test atan2(T(NaN), T(0.1)) === T(NaN)
+        @test atan2(T(0.1), T(NaN)) === T(NaN)
+        r = T(randn())
+        absr = abs(r)
+        # y zero
+        @test atan2(T(r), one(T)) === atan(T(r))
+        @test atan2(zero(T), absr) === zero(T)
+        @test atan2(-zero(T), absr) === -zero(T)
+        @test atan2(zero(T), -absr) === T(pi)
+        @test atan2(-zero(T), -absr) === -T(pi)
+        # x zero and y not zero
+        @test atan2(one(T), zero(T)) === T(pi)/2
+        @test atan2(-one(T), zero(T)) === -T(pi)/2
+        # isinf(x) == true && isinf(y) == true
+        @test atan2(T(Inf), T(Inf)) === T(pi)/4 # m == 0 (see atan2 code)
+        @test atan2(-T(Inf), T(Inf)) === -T(pi)/4 # m == 1
+        @test atan2(T(Inf), -T(Inf)) === 3*T(pi)/4 # m == 2
+        @test atan2(-T(Inf), -T(Inf)) === -3*T(pi)/4 # m == 3
+        # isinf(x) == true && isinf(y) == false
+        @test atan2(absr, T(Inf)) === zero(T) # m == 0
+        @test atan2(-absr, T(Inf)) === -zero(T) # m == 1
+        @test atan2(absr, -T(Inf)) === T(pi) # m == 2
+        @test atan2(-absr, -T(Inf)) === -T(pi) # m == 3
+        # isinf(y) == true && isinf(x) == false
+        @test atan2(T(Inf), absr) === T(pi)/2
+        @test atan2(-T(Inf), absr) === -T(pi)/2
+        @test atan2(T(Inf), -absr) === T(pi)/2
+        @test atan2(-T(Inf), -absr) === -T(pi)/2
+        # |y/x| above high threshold
+        atanpi = T(1.5707963267948966)
+        @test atan2(T(2.0^61), T(1.0)) === atanpi # m==0
+        @test atan2(-T(2.0^61), T(1.0)) === -atanpi # m==1
+        @test atan2(T(2.0^61), -T(1.0)) === atanpi # m==2
+        @test atan2(-T(2.0^61), -T(1.0)) === -atanpi # m==3
+        @test atan2(-T(Inf), -absr) === -T(pi)/2
+        # |y|/x between 0 and low threshold
+        @test atan2(T(2.0^-61), -T(1.0)) === T(pi) # m==2
+        @test atan2(-T(2.0^-61), -T(1.0)) === -T(pi) # m==3
+        # y/x is "safe" ("arbitrary values", just need to hit the branch)
+        _ATAN2_PI_LO(::Type{Float32}) = -8.7422776573f-08
+        _ATAN2_PI_LO(::Type{Float64}) = 1.2246467991473531772E-16
+        @test atan2(T(5.0), T(2.5)) === atan(abs(T(5.0)/T(2.5)))
+        @test atan2(-T(5.0), T(2.5)) === -atan(abs(-T(5.0)/T(2.5)))
+        @test atan2(T(5.0), -T(2.5)) === T(pi)-(atan(abs(T(5.0)/-T(2.5)))-_ATAN2_PI_LO(T))
+        @test atan2(-T(5.0), -T(2.5)) === -(T(pi)-atan(abs(-T(5.0)/-T(2.5)))-_ATAN2_PI_LO(T))
+        @test atan2(T(1235.2341234), T(2.5)) === atan(abs(T(1235.2341234)/T(2.5)))
+        @test atan2(-T(1235.2341234), T(2.5)) === -atan(abs(-T(1235.2341234)/T(2.5)))
+        @test atan2(T(1235.2341234), -T(2.5)) === T(pi)-(atan(abs(T(1235.2341234)/-T(2.5)))-_ATAN2_PI_LO(T))
+        @test atan2(-T(1235.2341234), -T(2.5)) === -(T(pi)-(atan(abs(-T(1235.2341234)/T(2.5)))-_ATAN2_PI_LO(T)))
     end
 end
 

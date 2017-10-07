@@ -19,7 +19,7 @@ default: $(JULIA_BUILD_MODE) # contains either "debug" or "release"
 all: debug release
 
 # sort is used to remove potential duplicates
-DIRS := $(sort $(build_bindir) $(build_depsbindir) $(build_libdir) $(build_private_libdir) $(build_libexecdir) $(build_includedir) $(build_includedir)/julia $(build_sysconfdir)/julia $(build_datarootdir)/julia $(build_man1dir))
+DIRS := $(sort $(build_bindir) $(build_depsbindir) $(build_libdir) $(build_private_libdir) $(build_libexecdir) $(build_includedir) $(build_includedir)/julia $(build_sysconfdir)/julia $(build_datarootdir)/julia $(build_datarootdir)/julia/site $(build_man1dir))
 ifneq ($(BUILDROOT),$(JULIAHOME))
 BUILDDIRS := $(BUILDROOT) $(addprefix $(BUILDROOT)/,base src ui doc deps test test/perf examples examples/embedding)
 BUILDDIRMAKE := $(addsuffix /Makefile,$(BUILDDIRS))
@@ -49,7 +49,10 @@ configure:
 endif
 
 $(foreach dir,$(DIRS),$(eval $(call dir_target,$(dir))))
-$(foreach link,base test,$(eval $(call symlink_target,$(link),$(build_datarootdir)/julia)))
+$(foreach link,base test,$(eval $(call symlink_target,$(link),$(build_datarootdir)/julia,$(link))))
+
+build_defaultpkgdir = $(build_datarootdir)/julia/site/$(shell echo $(VERSDIR))
+$(eval $(call symlink_target,stdlib,$(build_datarootdir)/julia/site,$(shell echo $(VERSDIR))))
 
 julia_flisp.boot.inc.phony: julia-deps
 	@$(MAKE) $(QUIET_MAKE) -C $(BUILDROOT)/src julia_flisp.boot.inc.phony
@@ -81,7 +84,7 @@ ifndef JULIA_VAGRANT_BUILD
 endif
 endif
 
-julia-deps: | $(DIRS) $(build_datarootdir)/julia/base $(build_datarootdir)/julia/test
+julia-deps: | $(DIRS) $(build_datarootdir)/julia/base $(build_datarootdir)/julia/test $(build_defaultpkgdir)
 	@$(MAKE) $(QUIET_MAKE) -C $(BUILDROOT)/deps
 
 julia-base: julia-deps $(build_sysconfdir)/julia/juliarc.jl $(build_man1dir)/julia.1 $(build_datarootdir)/julia/julia-config.jl
@@ -220,7 +223,7 @@ $$(build_private_libdir)/sys$1.o: $$(build_private_libdir)/inference.ji $$(JULIA
 	@$$(call PRINT_JULIA, cd $$(JULIAHOME)/base && \
 	if $$(call spawn,$3) $2 -C "$$(JULIA_CPU_TARGET)" --output-o $$(call cygpath_w,$$@).tmp $$(JULIA_SYSIMG_BUILD_FLAGS) \
 		--startup-file=no --warn-overwrite=yes --sysimage $$(call cygpath_w,$$<) sysimg.jl $$(RELBUILDROOT); then \
-		mv $$(call cygpath_w,$$@).tmp $$(call cygpath_w,$$@); \
+		mv $$@.tmp $$@; \
 	else \
 		echo '*** This error is usually fixed by running `make clean`. If the error persists$$(COMMA) try `make cleanall`. ***' && false; \
 	fi )

@@ -256,10 +256,12 @@ let x = SparseVector(10, [2, 7, 9], [2.0, 7.0, 9.0])
 end
 
 # find and findnz tests
-@test find(spv_x1) == find(x1_full)
-@test findnz(spv_x1) == (find(x1_full), filter(x->x!=0, x1_full))
+@test find(!iszero, spv_x1) == find(!iszero, x1_full)
+@test find(spv_x1 .> 1) == find(x1_full .> 1)
+@test find(x->x>1, spv_x1) == find(x->x>1, x1_full)
+@test findnz(spv_x1) == (find(!iszero, x1_full), filter(x->x!=0, x1_full))
 let xc = SparseVector(8, [2, 3, 5], [1.25, 0, -0.75]), fc = Array(xc)
-    @test find(xc) == find(fc)
+    @test find(!iszero, xc) == find(!iszero, fc)
     @test findnz(xc) == ([2, 5], [1.25, -0.75])
 end
 
@@ -1000,6 +1002,9 @@ let testdims = ((5,10), (20,12), (25,30))
         @test Vector(kron(x,y)) == kron(Vector(x), Vector(y))
         @test Vector(kron(Vector(x),y)) == kron(Vector(x), Vector(y))
         @test Vector(kron(x,Vector(y))) == kron(Vector(x), Vector(y))
+        # test different types
+        z = convert(SparseVector{Float16, Int8}, y)
+        @test Vector(kron(x, z)) == kron(Vector(x), Vector(z))
     end
 end
 

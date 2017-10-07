@@ -103,7 +103,6 @@ As in the example above, we recommend following some simple conventions when wri
    Some nice documentation here.
 
    # Examples
-
    ```jldoctest
    julia> a = [1 2; 3 4]
    2×2 Array{Int64,2}:
@@ -128,6 +127,20 @@ As in the example above, we recommend following some simple conventions when wri
 
    You can then run `make -C doc doctest` to run all the doctests in the Julia Manual, which will
    ensure that your example works.
+
+   To indicate that the output result is truncated, you may write
+   `[...]` at the line where checking should stop. This is useful to
+   hide a stacktrace (which contains non-permanent references to lines
+   of julia code) when the doctest shows that an exception is thrown,
+   for example:
+
+   ````julia
+   ```jldoctest
+   julia> div(1, 0)
+   ERROR: DivideError: integer division error
+   [...]
+   ```
+   ````
 
    Examples that are untestable should be written within fenced code blocks starting with ````` ```julia`````
    so that they are highlighted correctly in the generated documentation.

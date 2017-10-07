@@ -2,7 +2,7 @@
 
 ```@meta
 DocTestSetup = quote
-    using Base.Test
+    using Test
 end
 ```
 
@@ -18,7 +18,7 @@ Base.runtests
 
 ## Basic Unit Tests
 
-The `Base.Test` module provides simple *unit testing* functionality. Unit testing is a way to
+The `Test` module provides simple *unit testing* functionality. Unit testing is a way to
 see if your code is correct by checking that the results are what you expect. It can be helpful
 to ensure your code still works after you make changes, and can be used when developing as a way
 of specifying the behaviors your code should have when complete.
@@ -26,14 +26,14 @@ of specifying the behaviors your code should have when complete.
 Simple unit testing can be performed with the `@test` and `@test_throws` macros:
 
 ```@docs
-Base.Test.@test
-Base.Test.@test_throws
+Test.@test
+Test.@test_throws
 ```
 
 For example, suppose we want to check our new function `foo(x)` works as expected:
 
 ```jldoctest testfoo
-julia> using Base.Test
+julia> using Test
 
 julia> foo(x) = length(x)^2
 foo (generic function with 1 method)
@@ -75,7 +75,7 @@ Error During Test
     length(::MethodTable) at reflection.jl:597
     ...
   Stacktrace:
-   [...]
+  [...]
 ERROR: There was an error during testing
 ```
 
@@ -100,7 +100,7 @@ be run, and at the end of the test set a summary will be printed. If any of the 
 or could not be evaluated due to an error, the test set will then throw a `TestSetException`.
 
 ```@docs
-Base.Test.@testset
+Test.@testset
 ```
 
 We can put our tests for the `foo(x)` function in a test set:
@@ -154,8 +154,7 @@ julia> @testset "Foo Tests" begin
 Arrays: Test Failed
   Expression: foo(ones(4)) == 15
    Evaluated: 16 == 15
-Stacktrace:
-    [...]
+[...]
 Test Summary: | Pass  Fail  Total
 Foo Tests     |    3     1      4
   Animals     |    2            2
@@ -181,9 +180,9 @@ ERROR: There was an error during testing
 ```
 
 ```@docs
-Base.Test.@inferred
-Base.Test.@test_warn
-Base.Test.@test_nowarn
+Test.@inferred
+Test.@test_warn
+Test.@test_nowarn
 ```
 
 ## Broken Tests
@@ -193,14 +192,14 @@ the test as `Broken` if the test continues to fail and alerts the user via an `E
 succeeds.
 
 ```@docs
-Base.Test.@test_broken
+Test.@test_broken
 ```
 
 `@test_skip` is also available to skip a test without evaluation, but counting the skipped test
 in the test set reporting. The test will not run but gives a `Broken` `Result`.
 
 ```@docs
-Base.Test.@test_skip
+Test.@test_skip
 ```
 
 ## Creating Custom `AbstractTestSet` Types
@@ -210,32 +209,32 @@ methods. The subtype should have a one-argument constructor taking a description
 any options passed in as keyword arguments.
 
 ```@docs
-Base.Test.record
-Base.Test.finish
+Test.record
+Test.finish
 ```
 
-`Base.Test` takes responsibility for maintaining a stack of nested testsets as they are executed,
+`Test` takes responsibility for maintaining a stack of nested testsets as they are executed,
 but any result accumulation is the responsibility of the `AbstractTestSet` subtype. You can access
 this stack with the `get_testset` and `get_testset_depth` methods. Note that these functions are
 not exported.
 
 ```@docs
-Base.Test.get_testset
-Base.Test.get_testset_depth
+Test.get_testset
+Test.get_testset_depth
 ```
 
-`Base.Test` also makes sure that nested `@testset` invocations use the same `AbstractTestSet`
+`Test` also makes sure that nested `@testset` invocations use the same `AbstractTestSet`
 subtype as their parent unless it is set explicitly. It does not propagate any properties of the
 testset. Option inheritance behavior can be implemented by packages using the stack infrastructure
-that `Base.Test` provides.
+that `Test` provides.
 
 Defining a basic `AbstractTestSet` subtype might look like:
 
 ```julia
-import Base.Test: record, finish
-using Base.Test: AbstractTestSet, Result, Pass, Fail, Error
-using Base.Test: get_testset_depth, get_testset
-struct CustomTestSet <: Base.Test.AbstractTestSet
+import Test: record, finish
+using Test: AbstractTestSet, Result, Pass, Fail, Error
+using Test: get_testset_depth, get_testset
+struct CustomTestSet <: Test.AbstractTestSet
     description::AbstractString
     foo::Int
     results::Vector

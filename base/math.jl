@@ -435,8 +435,7 @@ julia> log1p(0)
 ```
 """
 log1p(x)
-for f in (:sin, :cos, :tan, :acosh, :atanh, :log, :log2, :log10,
-          :lgamma, :log1p)
+for f in (:acosh, :atanh, :log, :log2, :log10, :lgamma, :log1p)
     @eval begin
         @inline ($f)(x::Float64) = nan_dom_err(ccall(($(string(f)), libm), Float64, (Float64,), x), x)
         @inline ($f)(x::Float32) = nan_dom_err(ccall(($(string(f, "f")), libm), Float32, (Float32,), x), x)
@@ -445,20 +444,11 @@ for f in (:sin, :cos, :tan, :acosh, :atanh, :log, :log2, :log10,
 end
 
 @inline asin(x::Real) = asin(float(x))
+@inline sin(x::Real) = sin(float(x))
+@inline cos(x::Real) = cos(float(x))
+@inline tan(x::Real) = tan(float(x))
+@inline sincos(x::Real) = sincos(float(x))
 @inline acos(x::Real) = acos(float(x))
-
-"""
-    sincos(x)
-
-Compute sine and cosine of `x`, where `x` is in radians.
-"""
-@inline function sincos(x)
-    res = Base.FastMath.sincos_fast(x)
-    if (isnan(res[1]) | isnan(res[2])) & !isnan(x)
-        throw(DomainError(x, "NaN result for non-NaN input."))
-    end
-    return res
-end
 
 @inline function sqrt(x::Union{Float32,Float64})
     x < zero(x) && throw_complex_domainerror(:sqrt, x)
@@ -489,9 +479,7 @@ julia> √(a^2 + a^2) # a^2 overflows
 ERROR: DomainError with -2.914184810805068e18:
 sqrt will only return a complex result if called with a complex argument. Try sqrt(Complex(x)).
 Stacktrace:
- [1] throw_complex_domainerror(::Symbol, ::Float64) at ./math.jl:31
- [2] sqrt at ./math.jl:462 [inlined]
- [3] sqrt(::Int64) at ./math.jl:472
+[...]
 ```
 """
 hypot(x::Number, y::Number) = hypot(promote(x, y)...)
@@ -535,9 +523,6 @@ quadrant of the return value.
 """
 atan2(y::Real, x::Real) = atan2(promote(float(y),float(x))...)
 atan2(y::T, x::T) where {T<:AbstractFloat} = Base.no_op_err("atan2", T)
-
-atan2(y::Float64, x::Float64) = ccall((:atan2,libm), Float64, (Float64, Float64,), y, x)
-atan2(y::Float32, x::Float32) = ccall((:atan2f,libm), Float32, (Float32, Float32), y, x)
 
 max(x::T, y::T) where {T<:AbstractFloat} = ifelse((y > x) | (signbit(y) < signbit(x)),
                                     ifelse(isnan(x), x, y), ifelse(isnan(y), y, x))
@@ -1002,6 +987,7 @@ for func in (:atan2,:hypot)
 end
 
 cbrt(a::Float16) = Float16(cbrt(Float32(a)))
+sincos(a::Float16) = Float16.(sincos(Float32(a)))
 
 # More special functions
 include(joinpath("special", "exp.jl"))
