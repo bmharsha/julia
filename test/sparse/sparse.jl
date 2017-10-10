@@ -489,12 +489,6 @@ end
     @test Array(spdiagm(ones(2), -1, 3, 3)) == diagm(ones(2), -1)
 end
 
-@testset "issue #4986, reinterpret" begin
-    sfe22 = speye(Float64, 2)
-    mfe22 = eye(Float64, 2)
-    @test reinterpret(Int64, sfe22) == reinterpret(Int64, mfe22)
-end
-
 @testset "issue #5190" begin
     @test_throws ArgumentError sparsevec([3,5,7],[0.1,0.0,3.2],4)
 end
@@ -964,10 +958,6 @@ end
     ACPY = copy(A)
     B = reshape(A,25,1)
     @test A == ACPY
-    C = reinterpret(Int64, A, (25, 1))
-    @test A == ACPY
-    D = reinterpret(Int64, copy(B))
-    @test C == D
 end
 
 @testset "issue #8225" begin
@@ -1316,11 +1306,8 @@ end
     @test spdiagm(([1,2],[3.5],[4+5im]), (0,1,-1), 2,2) == [1 3.5; 4+5im 2]
 end
 
-@testset "error conditions for reinterpret, reshape, and squeeze" begin
+@testset "error conditions for reshape, and squeeze" begin
     local A = sprand(Bool, 5, 5, 0.2)
-    @test_throws ArgumentError reinterpret(Complex128, A)
-    @test_throws ArgumentError reinterpret(Complex128, A,(5, 5))
-    @test_throws DimensionMismatch reinterpret(Int8, A,(20,))
     @test_throws DimensionMismatch reshape(A,(20, 2))
     @test_throws ArgumentError squeeze(A,(1, 1))
 end
@@ -1376,8 +1363,9 @@ end
 end
 
 @testset "droptol" begin
-    srand(1234321)
-    local A = triu(sprand(10, 10, 0.2))
+    local A = guardsrand(1234321) do
+        triu(sprand(10, 10, 0.2))
+    end
     @test Base.droptol!(A, 0.01).colptr == [1,1,1,2,2,3,4,6,6,7,9]
     @test isequal(Base.droptol!(sparse([1], [1], [1]), 1), SparseMatrixCSC(1, 1, Int[1, 1], Int[], Int[]))
 end
@@ -1656,9 +1644,11 @@ end
 end
 
 @testset "sparse matrix normestinv" begin
-    Ac = sprandn(20,20,.5) + im* sprandn(20,20,.5)
-    Aci = ceil.(Int64, 100*sprand(20,20,.5)) + im*ceil.(Int64, sprand(20,20,.5))
-    Ar = sprandn(20,20,.5)
+    Ac, Aci, Ar = guardsrand(1234) do
+        sprandn(20,20,.5) + im* sprandn(20,20,.5),
+        ceil.(Int64, 100*sprand(20,20,.5)) + im*ceil.(Int64, sprand(20,20,.5)),
+        sprandn(20,20,.5)
+    end
     Ari = ceil.(Int64, 100*Ar)
     if Base.USE_GPL_LIBS
         @test Base.SparseArrays.normestinv(Ac,3) ≈ norm(inv(Array(Ac)),1) atol=1e-4
@@ -1978,8 +1968,9 @@ end
 
 @testset "reverse search direction if step < 0 #21986" begin
     local A, B
-    srand(1234)
-    A = sprand(5, 5, 1/5)
+    A = guardsrand(1234) do
+        sprand(5, 5, 1/5)
+    end
     A = max.(A, A')
     A = spones(A)
     B = A[5:-1:1, 5:-1:1]
@@ -1999,13 +1990,14 @@ end
     n = 10
     p = 5
     np2 = div(n*p, 2)
-    srand(1)
-    if elty <: Real
-        nzvals = randn(np2)
-    else
-        nzvals = complex.(randn(np2), randn(np2))
+    nzvals, x_sparse = guardsrand(1) do
+        if elty <: Real
+            nzvals = randn(np2)
+        else
+            nzvals = complex.(randn(np2), randn(np2))
+        end
+        nzvals, sparse(rand(1:n, np2), rand(1:p, np2), nzvals, n, p)
     end
-    x_sparse = sparse(rand(1:n, np2), rand(1:p, np2), nzvals, n, p)
     x_dense  = convert(Matrix{elty}, x_sparse)
     @testset "Test with no Infs and NaNs, vardim=$vardim, corrected=$corrected" for vardim in (1, 2),
                                                                                  corrected in (true, false)
