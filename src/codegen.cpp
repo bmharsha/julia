@@ -5503,6 +5503,11 @@ static std::unique_ptr<Module> emit_function(
                 cur_prop.loc_changed = true;
             }
             else if (meta_arg == (jl_value_t*)jl_symbol("pop_loc")) {
+                unsigned npops = 1;
+                if (jl_expr_nargs(expr) > 1)
+                    npops = jl_unbox_long(jl_exprarg(expr, 1));
+                for (unsigned i = 1; i < npops; i++)
+                    DI_stack.pop_back();
                 cur_prop.is_poploc = true;
                 auto &DI = DI_stack.back();
                 SP = DI.sp;
@@ -5510,8 +5515,8 @@ static std::unique_ptr<Module> emit_function(
                 cur_prop.file = DI.file;
                 cur_prop.line = DI.line;
                 cur_prop.in_user_code = DI.in_user_code;
-                DI_stack.pop_back();
                 cur_prop.loc_changed = true;
+                DI_stack.pop_back();
             }
         }
         stmtprops[i] = cur_prop;
@@ -6834,8 +6839,10 @@ extern "C" void *jl_init_llvm(void)
         // Generate simpler code for JIT
         .setRelocationModel(Reloc::Static)
 #ifdef _P64
+        // Make sure we are using the large code model on 64bit
+        // Let LLVM pick a default suitable for jitting on 32bit
         .setCodeModel(CodeModel::Large)
-#else
+#elif JL_LLVM_VERSION < 60000
         .setCodeModel(CodeModel::JITDefault)
 #endif
 #ifdef DISABLE_OPT
