@@ -126,7 +126,15 @@ julia> fieldname(SparseMatrixCSC, 5)
 :nzval
 ```
 """
-fieldname(t::DataType, i::Integer) = (isdefined(t,:names) ? t.names[i] : t.name.names[i])::Symbol
+function fieldname(t::DataType, i::Integer)
+    names = isdefined(t, :names) ? t.names : t.name.names
+    n_fields = length(names)
+    field_label = n_fields == 1 ? "field" : "fields"
+    i > n_fields && throw(ArgumentError("Cannot access field $i since type $t only has $n_fields $field_label."))
+    i < 1 && throw(ArgumentError("Field numbers must be positive integers. $i is invalid."))
+    return names[i]::Symbol
+end
+
 fieldname(t::UnionAll, i::Integer) = fieldname(unwrap_unionall(t), i)
 fieldname(t::Type{<:Tuple}, i::Integer) =
     i < 1 || i > fieldcount(t) ? throw(BoundsError(t, i)) : Int(i)
